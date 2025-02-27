@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CBZ Reader</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <style>
+        body { 
+            text-align: left;
+            font-family: Arial, sans-serif;
+            color: white;
+            background-color: black;
+            display: flex;
+			margin: 0;
+        }
+        #sidebar {
+			position: sticky;
+            background: #444;
+			height: 20em;
+            width: 15em;
+			padding: 1em;
+            transition: transform 0.3s ease-in-out;
+            transform: translateX(0);
+            position: sticky;
+			top: 0;
+			z-index: 1;
+			flex-shrink: 0;
+        }
+        #sidebar.collapsed {
+            transform: translateX(-100%);
+        }
+		#sidebar-container {
+			display: flex;
+			flex-direction: column;
+			height: 100%;
+		}
+        #toggleButton {
+			color: white;
+            background: darkgray;
+            padding: 10px 10px 10px 5px;
+            cursor: pointer;
+            position: absolute;
+            top: 0px;
+            right: -50px;
+            width: 50px;
+        }
+       img {
+			max-width: 90%; /* Prevents images from affecting layout */
+			max-height: 80vh; /* Limits height to prevent overflow */
+			display: block;
+			margin: auto;
+			padding: 10px;
+		}
+		b {
+			font-size: 24px;
+		}
+        input {
+			background: darkgray;
+			width: 100%;
+			height: 100%;
+			box-sizing: border-box;
+			margin-top: 10px;
+			padding: 5px;
+			flex-grow: 1;
+		}
+        #imageContainer {
+			flex-grow: 1;
+			text-align: center;
+			padding: 20px;
+			overflow: auto; /* Allows scrolling without affecting the sidebar */
+		}
+    </style>
+</head>
+<body>
+    <div id="sidebar">
+		<div id="sidebar-container">
+			<button id="toggleButton">Open</button>
+			<b>CBZ Reader</b>
+			<input type="file" id="fileInput" accept=".cbz">
+		</div>
+    </div>
+    <div id="imageContainer"></div>
+    
+    <script>
+        document.getElementById('toggleButton').addEventListener('click', function() {
+            const sidebar = document.getElementById('sidebar');
+            sidebar.classList.toggle('collapsed');
+        });
+        
+        document.getElementById('fileInput').addEventListener('change', async function(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            
+            const zip = new JSZip();
+            const zipData = await file.arrayBuffer();
+            const contents = await zip.loadAsync(zipData);
+            
+            const imageFiles = Object.keys(contents.files)
+                .filter(filename => filename.match(/\.(jpg|jpeg|png|gif)$/i))
+                .sort();
+
+            const container = document.getElementById('imageContainer');
+            container.innerHTML = '';
+            
+            for (const filename of imageFiles) {
+                const imgData = await contents.files[filename].async('blob');
+                const imgUrl = URL.createObjectURL(imgData);
+                
+                const img = document.createElement('img');
+                img.src = imgUrl;
+                container.appendChild(img);
+            }
+        });
+    </script>
+</body>
+</html>
