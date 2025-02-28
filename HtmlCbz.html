@@ -37,7 +37,7 @@
 			flex-direction: column;
 			height: 100%;
 		}
-		#toggleButton {
+		#sidebarToggle {
 			color: white;
 			background: darkgray;
 			cursor: pointer;
@@ -68,13 +68,20 @@
 			flex-grow: 1;
 			text-align: center;
 			overflow: auto; /* Allows scrolling without affecting the sidebar */
-			transform: translateX(150px);
+			border: 1px solid grey
 		}
 		#pageCounter {
 			position: absolute;
 			top: 10px;
 			left: 10px;
 			color: white;
+		}
+		#zoomContainer {
+			margin-top: 10px;
+		}
+		#zoomContainer button{
+			width: 25px;
+			height: 25px;
 		}
 	</style>
 </head>
@@ -83,15 +90,21 @@
 	<div id="imageContainer"></div>
 	<div id="sidebar">
 		<div id="sidebar-container">
-			<button id="toggleButton">Open</button>
+			<button id="sidebarToggle">Open</button>
 			<b>CBZ Reader</b>
 			<input type="file" id="fileInput" accept=".cbz">
+			<div id="zoomContainer">
+				<text>Zoom:</text>
+				<button id="zoomIn">+</button>
+				<button id="zoomOut">-</button>
+				<text id="zoomPerc">100%</text>
+			</div>
 		</div>
 	</div>
 	
 	
 	<script>
-		document.getElementById('toggleButton').addEventListener('click', function() {
+		document.getElementById('sidebarToggle').addEventListener('click', function() {
 			const sidebar = document.getElementById('sidebar');
 			sidebar.classList.toggle('collapsed');
 		});
@@ -121,7 +134,11 @@
 				img.src = imgUrl;
 				container.appendChild(img);
 			}
+
+			// Set up zooming after images are loaded
+			setupZoom();
 			
+			// Page counter logic
 			container.addEventListener('scroll', function() {
 				const imageHeight = container.querySelector('img')?.height || 0;
 				const padding = 5; // 5px padding between images
@@ -131,6 +148,34 @@
 				document.getElementById('pageCounter').textContent = `Page ${currentPage} / ${totalPages}`;
 			});
 		});
+
+		function setupZoom() {
+			const images = document.querySelectorAll("#imageContainer img");
+			const zoomInButton = document.getElementById("zoomIn");
+			const zoomOutButton = document.getElementById("zoomOut");
+
+			let zoomLevel = 100; // Start at 100%
+
+			function updateZoom() {
+				images.forEach(img => {
+					img.style.maxHeight = `${zoomLevel}vh`; // 200vh is 100%, scale accordingly
+				});
+				document.getElementById('zoomPerc').textContent = `${zoomLevel}%`;
+			}
+
+			zoomInButton.addEventListener("click", function () {
+				zoomLevel += 10;
+				updateZoom();
+			});
+
+			zoomOutButton.addEventListener("click", function () {
+				if (zoomLevel > 10) { // Prevent zooming too small
+					zoomLevel -= 10;
+					updateZoom();
+				}
+			});
+		}
 	</script>
+
 </body>
 </html>
