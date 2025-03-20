@@ -3,7 +3,7 @@ A html/js in-browser .cbz comic/manga file viewer<br>
 Mainly intended for use in school/work where apps and other websites are probably blocked, but use it however you'd like!
 
 ## How to use
-- Go to [maxadams0.github.io/HtmlCbz](maxadams0.github.io/HtmlCbz)
+- Go to [maxadams0.github.io/HtmlCbz](https://maxadams0.github.io/HtmlCbz)
 - Go to [https://htmlcbz.pages.dev/](https://htmlcbz.pages.dev/)
 - Run it through browser ( just open index.html )
 - By using the Google Docs feature 'Apps Script' ( follow instructions below )
