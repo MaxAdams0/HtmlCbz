@@ -1,80 +1,78 @@
-<script>
-	document.getElementById('sidebarToggle').addEventListener('click', function() {
-		const sidebar = document.getElementById('sidebar');
-		sidebar.classList.toggle('collapsed');
-	});
-	 
-	document.getElementById('fileInput').addEventListener('change', async function(event) {
-		const file = event.target.files[0];
-		if (!file) return;
-	   
-		const zip = new JSZip();
-		const zipData = await file.arrayBuffer();
-		const contents = await zip.loadAsync(zipData);
-	   
-		const imageFiles = Object.keys(contents.files)
-		  .filter(filename => filename.match(/\.(jpg|jpeg|png|gif)$/i))
-		  .sort();
+document.getElementById('sidebarToggle').addEventListener('click', function() {
+	const sidebar = document.getElementById('sidebar');
+	sidebar.classList.toggle('collapsed');
+});
+ 
+document.getElementById('fileInput').addEventListener('change', async function(event) {
+	const file = event.target.files[0];
+	if (!file) return;
+   
+	const zip = new JSZip();
+	const zipData = await file.arrayBuffer();
+	const contents = await zip.loadAsync(zipData);
+   
+	const imageFiles = Object.keys(contents.files)
+	  .filter(filename => filename.match(/\.(jpg|jpeg|png|gif)$/i))
+	  .sort();
 
 
-		const container = document.getElementById('imageContainer');
-		container.innerHTML = '';
-	   
-		const totalPages = imageFiles.length;
-	   
-		for (const filename of imageFiles) {
-			const imgData = await contents.files[filename].async('blob');
-			const imgUrl = URL.createObjectURL(imgData);
+	const container = document.getElementById('imageContainer');
+	container.innerHTML = '';
+   
+	const totalPages = imageFiles.length;
+   
+	for (const filename of imageFiles) {
+		const imgData = await contents.files[filename].async('blob');
+		const imgUrl = URL.createObjectURL(imgData);
 
-			const img = document.createElement('img');
-			img.src = imgUrl;
-			container.appendChild(img);
-		}
-
-
-		// Set up zooming after images are loaded
-		setupZoom();
-	   
-		// Page counter logic
-		container.addEventListener('scroll', function() {
-			const imageHeight = container.querySelector('img')?.height || 0;
-			const padding = 5; // 5px padding between images
-			const totalHeight = imageHeight + padding;
-			const scrollPosition = container.scrollTop;
-			const currentPage = Math.floor(scrollPosition / totalHeight) + 1;
-			document.getElementById('pageCounter').textContent = `Page ${currentPage} / ${totalPages}`;
-		});
-	});
-
-
-	function setupZoom() {
-		const images = document.querySelectorAll("#imageContainer img");
-		const zoomInButton = document.getElementById("zoomIn");
-		const zoomOutButton = document.getElementById("zoomOut");
-
-
-		let zoomLevel = 120; // Start at 120%
-
-
-		function updateZoom() {
-			images.forEach(img => {
-				img.style.maxHeight = `${zoomLevel}vh`;
-			});
-		  document.getElementById('zoomPerc').textContent = `${zoomLevel}%`;
-		}
-
-
-		zoomInButton.addEventListener("click", function () {
-			zoomLevel += 10;
-			updateZoom();
-		});
-
-
-		zoomOutButton.addEventListener("click", function () {
-			if (zoomLevel > 10) { // Prevent zooming too small
-				zoomLevel -= 10;
-				updateZoom();
-			}
-		});
+		const img = document.createElement('img');
+		img.src = imgUrl;
+		container.appendChild(img);
 	}
-</script>
+
+
+	// Set up zooming after images are loaded
+	setupZoom();
+   
+	// Page counter logic
+	container.addEventListener('scroll', function() {
+		const imageHeight = container.querySelector('img')?.height || 0;
+		const padding = 5; // 5px padding between images
+		const totalHeight = imageHeight + padding;
+		const scrollPosition = container.scrollTop;
+		const currentPage = Math.floor(scrollPosition / totalHeight) + 1;
+		document.getElementById('pageCounter').textContent = `Page ${currentPage} / ${totalPages}`;
+	});
+});
+
+
+function setupZoom() {
+	const images = document.querySelectorAll("#imageContainer img");
+	const zoomInButton = document.getElementById("zoomIn");
+	const zoomOutButton = document.getElementById("zoomOut");
+
+
+	let zoomLevel = 120; // Start at 120%
+
+
+	function updateZoom() {
+		images.forEach(img => {
+			img.style.maxHeight = `${zoomLevel}vh`;
+		});
+	  document.getElementById('zoomPerc').textContent = `${zoomLevel}%`;
+	}
+
+
+	zoomInButton.addEventListener("click", function () {
+		zoomLevel += 10;
+		updateZoom();
+	});
+
+
+	zoomOutButton.addEventListener("click", function () {
+		if (zoomLevel > 10) { // Prevent zooming too small
+			zoomLevel -= 10;
+			updateZoom();
+		}
+	});
+}
