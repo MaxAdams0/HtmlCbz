@@ -5,9 +5,10 @@
 		<title>Html-only Cbz Reader</title>
 		<!-- Include external JSZip library -->
 		<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
-		<!-- For every deployment except GAS -->
-		<link rel="stylesheet" href="style.css">
-		<script src="script.js" defer></script>
+		
+		<!-- Google Apps Script API only, must be .html -->
+		<?!= include('Styles'); ?>
+		<?!= include('Scripts'); ?>
 	</head>
 	<body>
 		<b id="pageCounter"></b>
