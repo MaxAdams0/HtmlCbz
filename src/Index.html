@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<base target="_top">
+		<title>CBZ Reader</title>
+		<!-- Include external JSZip library -->
+		<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+		<link rel="stylesheet" href="Styles.html">
+		<script src="Scripts.html" defer></script>
+
+		
+		<?!= include('Styles'); ?> <!-- Google Apps Script API only -->
+	</head>
+	<body>
+		<b id="pageCounter"></b>
+		<div id="imageContainer"></div>
+		<div id="sidebar">
+			<div id="sidebar-container">
+				<button id="sidebarToggle">Open</button>
+				<b>CBZ Reader</b>
+				<input type="file" id="fileInput" accept=".cbz">
+				<div id="zoomContainer">
+					<text>Zoom:</text>
+					<button id="zoomIn">+</button>
+					<button id="zoomOut">-</button>
+					<text id="zoomPerc">100%</text>
+				</div>
+			</div>
+		</div>
+		<?!= include('Scripts'); ?> <!-- Google Apps Script API only -->
+	</body>
+</html>
