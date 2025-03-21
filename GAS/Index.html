@@ -5,7 +5,6 @@
 		<title>Html-only Cbz Reader</title>
 		<!-- Include external JSZip library -->
 		<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
-		
 		<!-- Google Apps Script API only, must be .html -->
 		<?!= include('Styles'); ?>
 		<?!= include('Scripts'); ?>
@@ -13,18 +12,11 @@
 	<body>
 		<b id="pageCounter"></b>
 		<div id="imageContainer"></div>
-		<div id="sidebar">
-			<div id="sidebar-container">
-				<button id="sidebarToggle">Open</button>
-				<b>Cbz Reader</b>
-				<input type="file" id="fileInput" accept=".cbz">
-				<div id="zoomContainer">
-					<text>Zoom:</text>
-					<button id="zoomIn">+</button>
-					<button id="zoomOut">-</button>
-					<text id="zoomPerc">120%</text>
-				</div>
-			</div>
+		<div id="bar">
+			<input type="file" id="fileInput" accept=".cbz">
+			<text>Zoom:</text>
+			<input type="range" id="zoomSlider" min="60" max="160" value="100">
+			<input type="number" id="zoomInput" min="60" max="160" value="100" step="1">
 		</div>
 	</body>
 </html>

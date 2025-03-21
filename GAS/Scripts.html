@@ -1,9 +1,15 @@
 <script>
-	document.getElementById('sidebarToggle').addEventListener('click', function() {
-		const sidebar = document.getElementById('sidebar');
-		sidebar.classList.toggle('collapsed');
-	});
-	 
+	function setPageCounter(pageCount) {
+		const container = document.getElementById('imageContainer');
+		
+		const imageHeight = container.querySelector('img')?.height || 0;
+		const padding = 5; // 5px padding between images
+		const totalHeight = imageHeight + padding;
+		const scrollPosition = container.scrollTop;
+		const currentPage = Math.floor(scrollPosition / totalHeight) + 1;
+		document.getElementById('pageCounter').textContent = `Page ${currentPage} / ${pageCount}`;
+	}
+
 	document.getElementById('fileInput').addEventListener('change', async function(event) {
 		const file = event.target.files[0];
 		if (!file) return;
@@ -33,48 +39,51 @@
 
 
 		// Set up zooming after images are loaded
-		setupZoom();
+		setupZoom(totalPages);
 	   
 		// Page counter logic
 		container.addEventListener('scroll', function() {
-			const imageHeight = container.querySelector('img')?.height || 0;
-			const padding = 5; // 5px padding between images
-			const totalHeight = imageHeight + padding;
-			const scrollPosition = container.scrollTop;
-			const currentPage = Math.floor(scrollPosition / totalHeight) + 1;
-			document.getElementById('pageCounter').textContent = `Page ${currentPage} / ${totalPages}`;
+			setPageCounter(totalPages);
 		});
 	});
 
 
-	function setupZoom() {
+	function setupZoom(pageCount) {
 		const images = document.querySelectorAll("#imageContainer img");
-		const zoomInButton = document.getElementById("zoomIn");
-		const zoomOutButton = document.getElementById("zoomOut");
+		const zoomSlider = document.getElementById("zoomSlider");
+		const zoomInput = document.getElementById("zoomInput");
+		let zoomLevel = zoomSlider.value || 100; // Default zoom level at 100%
 
-
-		let zoomLevel = 120; // Start at 120%
-
-
-		function updateZoom() {
+		// Function to update zoom
+		function updateZoom(value) {
+			zoomLevel = value;
 			images.forEach(img => {
+				// Update the maxHeight to reflect the zoom level
 				img.style.maxHeight = `${zoomLevel}vh`;
 			});
-		  document.getElementById('zoomPerc').textContent = `${zoomLevel}%`;
+			setPageCounter(pageCount);
 		}
 
-
-		zoomInButton.addEventListener("click", function () {
-			zoomLevel += 10;
-			updateZoom();
+		// Slider event listener
+		zoomSlider.addEventListener("input", function () {
+			const value = parseInt(zoomSlider.value);
+			zoomInput.value = value; // Sync the input box with the slider
+			updateZoom(value);
 		});
 
-
-		zoomOutButton.addEventListener("click", function () {
-			if (zoomLevel > 10) { // Prevent zooming too small
-				zoomLevel -= 10;
-				updateZoom();
+		// Input event listener
+		zoomInput.addEventListener("input", function () {
+			const value = parseInt(zoomInput.value);
+			if (value >= 60 && value <= 160) {
+				zoomSlider.value = value; // Sync the slider with the input box
+				updateZoom(value);
+			} else {
+				// Reset to last valid zoom level if input is out of bounds
+				zoomInput.value = zoomLevel;
 			}
 		});
+
+		// Initialize with the default zoom level
+		updateZoom(zoomLevel);
 	}
 </script>
