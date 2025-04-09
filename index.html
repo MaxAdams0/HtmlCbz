@@ -94,7 +94,7 @@
 		</div>
 		<div id="imageContainer"></div>
 		<div id="bar">
-			<input type="file" id="fileInput" accept=".cbz,.cbr">
+			<input type="file" id="fileInput" accept=".cbz">
 			<text>Zoom:</text>
 			<input type="range" id="zoomSlider" min="60" max="160" value="100">
 			<input type="number" id="zoomInput" min="60" max="160" value="100" step="1">
@@ -110,32 +110,49 @@
 		const zoomInput = document.getElementById("zoomInput");
 
 		document.getElementById('fileInput').addEventListener('change', async function(event) {
+			loadingMessage.textContent = `Loading... (0 / 0)`;
+		
 			const file = event.target.files[0];
 			if (!file) return; // verify that at least one file exists
 			loadingMessage.style.opacity = "1";
 			
 			const totalPages = await loadBook(file);
-			console.log(`'${file.name}' loaded with ${totalPages} pages. Happy reading! =)`);
+			if (totalPages == 0) {
+				console.log(`'${file.name}' failed to load. Please check encoding...`);
+				
+				setTimeout(() => {
+					loadingMessage.style.opacity = "0";
+				}, 500);
+			} 
+			else {
+				console.log(`'${file.name}' loaded with ${totalPages} pages. Happy reading! =)`);
 
-			setTimeout(() => {
-				loadingMessage.style.opacity = "0";
-			}, 500);
+				setTimeout(() => {
+					loadingMessage.style.opacity = "0";
+				}, 500);
 
-			// Set up zooming after images are loaded
-			setupZoom(totalPages);
-		   
-			// Page counter logic
-			imageContainer.addEventListener('scroll', function() {
-				setPageCounter(totalPages);
-			});
+				// Set up zooming after images are loaded
+				setupZoom(totalPages);
+				
+				// Page counter logic
+				imageContainer.addEventListener('scroll', function() {
+					setPageCounter(totalPages);
+				});
+			}
 		});
 
 
 		async function loadBook(file) {
 			const zip = new JSZip();
 			const zipData = await file.arrayBuffer();
-			const contents = await zip.loadAsync(zipData);
-		   
+			var contents;
+			try {
+				contents = await zip.loadAsync(zipData);
+			} catch (err) {
+				alert("Could not load cbz file. It may be 7z encoded. Please use zip encoded cbz files only!\n\n" + err);
+				return 0;
+			}
+			
 			// ensure it is a valid type
 			const imageFiles = Object.keys(contents.files) 
 				.filter(filename => filename.match(/\.(jpg|jpeg|png|gif)$/i))
