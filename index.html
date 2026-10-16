@@ -94,8 +94,8 @@
 		<div id="bar">
 			<input type="file" id="fileInput" accept=".cbz">
 			<text>Zoom:</text>
-			<input type="range" id="zoomSlider" min="60" max="160" value="100">
-			<input type="number" id="zoomInput" min="60" max="160" value="100" step="1">
+			<input type="range" id="zoomSlider" min="25" max="250" value="100">
+			<input type="number" id="zoomInput" min="25" max="250" value="100" step="1">
 			<text id="pageCounter">Page 0 / 0</text>
 		</div>
 	</body>
@@ -192,13 +192,17 @@
 			imageOffsets = [];
 			let cumulative = 0;
 			images.forEach(img => {
-				cumulative += (img.offsetHeight || 0) + 5;
+				cumulative += (img.offsetHeight || 0);
 				imageOffsets.push(cumulative);
 			});
 		}
 
 		function setPageCounter(pageCount) {
 			const scrollPosition = imageContainer.scrollTop;
+			if (imageContainer.scrollTop + imageContainer.clientHeight >= imageContainer.scrollHeight - 1) {
+				pageCounter.textContent = `Page ${pageCount} / ${pageCount}`;
+				return;
+			}
 			let currentPage = 1;
 			for (let i = 0; i < imageOffsets.length; i++) {
 				if (scrollPosition < imageOffsets[i]) {
@@ -229,7 +233,7 @@
 			}
 
 			// How far into that page we've scrolled
-			const pageStart = targetPage > 0 ? imageOffsets[targetPage - 1] - 5 : 0;
+			const pageStart = targetPage > 0 ? imageOffsets[targetPage - 1] : 0;
 			const offsetInPage = scrollTop - pageStart;
 
 			const images = document.querySelectorAll("#imageContainer img");
@@ -239,8 +243,8 @@
 			computeImageOffsets();
 
 			// Restore scroll to keep the same page in view
-			const newPageStart = targetPage > 0 ? imageOffsets[targetPage - 1] - 5 : 0;
-			const imageHeight = imageOffsets[targetPage] - (targetPage > 0 ? imageOffsets[targetPage - 1] - 5 : 0) - 5;
+			const newPageStart = targetPage > 0 ? imageOffsets[targetPage - 1] : 0;
+			const imageHeight = imageOffsets[targetPage] - (targetPage > 0 ? imageOffsets[targetPage - 1] : 0);
 			const fraction = imageHeight > 0 ? Math.min(offsetInPage, imageHeight) : 0;
 			imageContainer.scrollTop = Math.min(newPageStart + fraction, imageContainer.scrollHeight - imageContainer.clientHeight);
 
@@ -265,7 +269,7 @@
 			// Input event listener
 			zoomInput.addEventListener("input", function () {
 				const value = parseInt(zoomInput.value);
-				if (value >= 60 && value <= 160) {
+				if (value >= 25 && value <= 250) {
 					zoomSlider.value = value; // Sync the slider with the input box
 					updateZoom(value, pageCount);
 				} else {
