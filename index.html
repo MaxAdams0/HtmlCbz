@@ -167,13 +167,11 @@
 				if (entry.comp === 0) {
 					imgData = new Blob([compressed]);
 				} else if (entry.comp === 8) {
-					const ds = new DecompressionStream('deflate-raw'), writer = ds.writable.getWriter();
+					const ds = new DecompressionStream('deflate-raw'), writer = ds.writable.getWriter(), reader = ds.readable.getReader(), chunks = [];
+					const drain = (async () => { while (true) { const {value, done} = await reader.read(); if (done) break; chunks.push(value); } })();
 					await writer.write(compressed); await writer.close();
-					const reader = ds.readable.getReader(), chunks = [];
-					while (true) { const {value, done} = await reader.read(); if (done) break; chunks.push(value); }
-					const result = new Uint8Array(entry.usize); let pos = 0;
-					for (const chunk of chunks) { result.set(chunk, pos); pos += chunk.length; }
-					imgData = new Blob([result]);
+					await drain;
+					imgData = new Blob(chunks);
 				} else continue;
 				const imgUrl = URL.createObjectURL(imgData);
 				const img = document.createElement('img');
