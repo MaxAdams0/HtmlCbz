@@ -94,8 +94,8 @@
 		<div id="bar">
 			<input type="file" id="fileInput" accept=".cbz">
 			<text>Zoom:</text>
-			<input type="range" id="zoomSlider" min="60" max="160" value="100">
-			<input type="number" id="zoomInput" min="60" max="160" value="100" step="1">
+			<input type="range" id="zoomSlider" min="25" max="250" value="100">
+			<input type="number" id="zoomInput" min="25" max="250" value="100" step="1">
 			<text id="pageCounter">Page 0 / 0</text>
 		</div>
 	</body>
@@ -108,173 +108,313 @@
 		const zoomInput = document.getElementById("zoomInput");
 		let imageOffsets = [];
 
+		let currentPageCount = 0;
+		let imageURLs = [];
+		const tag = '[CBZ]';
+		function log(level, message, detail) {
+			const method = console[level] || console.log;
+			if (detail === undefined) method.call(console, tag, message);
+			else method.call(console, tag, message, detail);
+		}
+		function status(message, error = false) {
+			loadingMessage.textContent = message;
+			loadingMessage.style.color = error ? '#ff9999' : 'white';
+			loadingMessage.style.opacity = '1';
+		}
+		function bytes(n) { return (n / (1024 * 1024)).toFixed(2) + ' MiB'; }
+
+		// Register these once, rather than registering more listeners for every book.
+		imageContainer.addEventListener('scroll', () => {
+			if (currentPageCount) setPageCounter(currentPageCount);
+		});
+
 		document.getElementById('fileInput').addEventListener('change', async function(event) {
-			loadingMessage.textContent = `Loading... (0 / 0)`;
-		
 			const file = event.target.files[0];
-			if (!file) return; // verify that at least one file exists
-			loadingMessage.style.opacity = "1";
-			
-			const totalPages = await loadBook(file);
-			if (totalPages == 0) {
-				console.log(`'${file.name}' failed to load. Please check encoding...`);
-				
-				setTimeout(() => {
-					loadingMessage.style.opacity = "0";
-				}, 500);
-			} 
-			else {
-				console.log(`'${file.name}' loaded with ${totalPages} pages. Happy reading! =)`);
-
-				setTimeout(() => {
-					loadingMessage.style.opacity = "0";
-				}, 500);
-
-				// Set up zooming after images are loaded
+			if (!file) return;
+			// Allow selecting the same file again after an error.
+			event.target.value = '';
+			currentPageCount = 0;
+			pageCounter.textContent = 'Page 0 / 0';
+			status('Loading... (0 / 0)');
+			loadingMessage.style.color = 'white';
+			loadingMessage.style.fontSize = '24px';
+			loadingMessage.style.opacity = '1';
+			try {
+				log('group', `Opening ${file.name} (${bytes(file.size)})`);
+				const totalPages = await loadBook(file);
+				currentPageCount = totalPages;
 				setupZoom(totalPages);
-				
-				// Page counter logic
-				imageContainer.addEventListener('scroll', function() {
-					setPageCounter(totalPages);
-				});
+				log('info', `Finished ${file.name}: ${totalPages} pages displayed.`);
+				console.groupEnd();
+				loadingMessage.style.opacity = '0';
+			} catch (error) {
+				log('error', `Failed to open '${file.name}'`, error);
+				console.groupEnd();
+				loadingMessage.style.opacity = '0';
 			}
 		});
 
-
-		async function loadBook(file) {
-			const d = new Uint8Array(await file.arrayBuffer()), len = d.length;
-			let e = len - 22;
-			while (e >= 0 && !(d[e]===0x50 && d[e+1]===0x4b && d[e+2]===0x05 && d[e+3]===0x06)) e--;
-			if (e < 0) { alert("Could not load cbz file. It may be 7z encoded. Please use zip encoded cbz files only!"); return 0; }
-			const num = d[e+10] | (d[e+11]<<8);
-			let off = d[e+16] | (d[e+17]<<8) | (d[e+18]<<16) | (d[e+19]<<24), entries = [];
-			for (let i = 0; i < num; i++) {
-				const comp = d[off+10] | (d[off+11]<<8), csize = d[off+20] | (d[off+21]<<8) | (d[off+22]<<16) | (d[off+23]<<24), usize = d[off+24] | (d[off+25]<<8) | (d[off+26]<<16) | (d[off+27]<<24), nlen = d[off+28] | (d[off+29]<<8), elen = d[off+30] | (d[off+31]<<8), clen = d[off+32] | (d[off+33]<<8), loff = d[off+42] | (d[off+43]<<8) | (d[off+44]<<16) | (d[off+45]<<24);
-				let name = '';
-				for (let j = 0; j < nlen; j++) name += String.fromCharCode(d[off+46+j]);
-				off += 46 + nlen + elen + clen;
-				entries.push({ name, comp, csize, usize, loff });
+		async function readRange(file, start, length) {
+			if (!Number.isSafeInteger(start) || !Number.isSafeInteger(length) ||
+				start < 0 || length < 0 || start + length > file.size) {
+				throw new Error('The ZIP archive has an invalid or truncated offset.');
 			}
-			const imageFiles = entries.filter(e => e.name.match(/\.(jpg|jpeg|png|gif)$/i)).sort((a, b) => a.name < b.name ? -1 : 1);
-			imageContainer.innerHTML = '';
-			const totalPages = imageFiles.length;
-			let pagesLoaded = 1;
-			const loadPromises = [];
-			for (const entry of imageFiles) {
-				const fnlen = d[entry.loff+26] | (d[entry.loff+27]<<8), exlen = d[entry.loff+28] | (d[entry.loff+29]<<8), dataOff = entry.loff + 30 + fnlen + exlen;
-				const compressed = d.subarray(dataOff, dataOff + entry.csize);
-				let imgData;
-				if (entry.comp === 0) {
-					imgData = new Blob([compressed]);
-				} else if (entry.comp === 8) {
-					const ds = new DecompressionStream('deflate-raw'), writer = ds.writable.getWriter();
-					await writer.write(compressed); await writer.close();
-					const reader = ds.readable.getReader(), chunks = [];
-					while (true) { const {value, done} = await reader.read(); if (done) break; chunks.push(value); }
-					const result = new Uint8Array(entry.usize); let pos = 0;
-					for (const chunk of chunks) { result.set(chunk, pos); pos += chunk.length; }
-					imgData = new Blob([result]);
-				} else continue;
-				const imgUrl = URL.createObjectURL(imgData);
-				const img = document.createElement('img');
-				img.src = imgUrl;
-				imageContainer.appendChild(img);
-				loadPromises.push(new Promise(resolve => { img.onload = resolve; img.onerror = resolve; }));
-				loadingMessage.textContent = `Loading... (${pagesLoaded} / ${totalPages})`;
-				pagesLoaded += 1;
-			}
-			await Promise.all(loadPromises);
-			computeImageOffsets();
-			return totalPages;
+			return new Uint8Array(await file.slice(start, start + length).arrayBuffer());
 		}
 
+		function safeZipInteger(bigIntValue) {
+			if (bigIntValue > BigInt(Number.MAX_SAFE_INTEGER)) {
+				throw new Error('A ZIP64 offset or size exceeds JavaScript\'s supported range.');
+			}
+			return Number(bigIntValue);
+		}
+
+		async function readZipEntries(file) {
+			// The ZIP end-of-central-directory record is in the last 65,557 bytes.
+			const tailSize = Math.min(file.size, 65557);
+			const tailStart = file.size - tailSize;
+			const tail = await readRange(file, tailStart, tailSize);
+			const tv = new DataView(tail.buffer);
+			let eocd = -1;
+			for (let i = tailSize - 22; i >= 0; i--) {
+				if (tv.getUint32(i, true) === 0x06054b50 &&
+					i + 22 + tv.getUint16(i + 20, true) === tailSize) {
+					eocd = i;
+					break;
+				}
+			}
+			if (eocd < 0) {
+				throw new Error('No ZIP directory found. Ensure this is a ZIP-based CBZ, not 7z or RAR.');
+			}
+			if (tv.getUint16(eocd + 4, true) !== 0 ||
+				tv.getUint16(eocd + 6, true) !== 0) {
+				throw new Error('Multi-volume ZIP archives are not supported.');
+			}
+
+			log('info', `Found ZIP end record at byte ${tailStart + eocd}`);
+			let count = tv.getUint16(eocd + 10, true);
+			let dirSize = tv.getUint32(eocd + 12, true);
+			let dirOffset = tv.getUint32(eocd + 16, true);
+			if (count === 0xffff || dirSize === 0xffffffff || dirOffset === 0xffffffff) {
+				// ZIP64 locator directly precedes the ordinary ZIP directory footer.
+				const loc = await readRange(file, tailStart + eocd - 20, 20);
+				const lv = new DataView(loc.buffer);
+				if (lv.getUint32(0, true) !== 0x07064b50) {
+					throw new Error('ZIP64 directory locator is missing or corrupt.');
+				}
+				const zip64Offset = safeZipInteger(lv.getBigUint64(8, true));
+				const zip64 = await readRange(file, zip64Offset, 56);
+				const zv = new DataView(zip64.buffer);
+				if (zv.getUint32(0, true) !== 0x06064b50) {
+					throw new Error('Invalid ZIP64 directory record.');
+				}
+				count = safeZipInteger(zv.getBigUint64(32, true));
+				dirSize = safeZipInteger(zv.getBigUint64(40, true));
+				dirOffset = safeZipInteger(zv.getBigUint64(48, true));
+			}
+
+			log('info', `ZIP directory: ${count} entries, offset=${dirOffset}, length=${dirSize}`);
+			const data = await readRange(file, dirOffset, dirSize);
+			const v = new DataView(data.buffer);
+			const entries = [];
+			let off = 0;
+			for (let i = 0; i < count; i++) {
+				if (off + 46 > data.length || v.getUint32(off, true) !== 0x02014b50) {
+					throw new Error(`Corrupt ZIP central directory at entry ${i + 1}.`);
+				}
+				const flags = v.getUint16(off + 8, true);
+				const comp = v.getUint16(off + 10, true);
+				let csize = v.getUint32(off + 20, true);
+				let usize = v.getUint32(off + 24, true);
+				const nlen = v.getUint16(off + 28, true);
+				const elen = v.getUint16(off + 30, true);
+				const clen = v.getUint16(off + 32, true);
+				let loff = v.getUint32(off + 42, true);
+				const next = off + 46 + nlen + elen + clen;
+				if (next > data.length) throw new Error('Truncated ZIP directory entry.');
+				const name = new TextDecoder('utf-8').decode(data.subarray(off + 46, off + 46 + nlen));
+
+				// In ZIP64, the 32-bit placeholder values live in the extra field.
+				if (csize === 0xffffffff || usize === 0xffffffff || loff === 0xffffffff) {
+					let p = off + 46 + nlen;
+					let found = false;
+					while (p + 4 <= off + 46 + nlen + elen) {
+						const id = v.getUint16(p, true);
+						const len = v.getUint16(p + 2, true);
+						p += 4;
+						if (p + len > off + 46 + nlen + elen) break;
+						if (id === 0x0001) {
+							const end = p + len;
+							if (usize === 0xffffffff) {
+								if (p + 8 > end) throw new Error(`Bad ZIP64 size: ${name}`);
+								usize = safeZipInteger(v.getBigUint64(p, true)); p += 8;
+							}
+							if (csize === 0xffffffff) {
+								if (p + 8 > end) throw new Error(`Bad ZIP64 size: ${name}`);
+								csize = safeZipInteger(v.getBigUint64(p, true)); p += 8;
+							}
+							if (loff === 0xffffffff) {
+								if (p + 8 > end) throw new Error(`Bad ZIP64 offset: ${name}`);
+								loff = safeZipInteger(v.getBigUint64(p, true)); p += 8;
+							}
+							found = true;
+							break;
+						}
+						p += len;
+					}
+					if (!found) throw new Error(`Missing ZIP64 extra information: ${name}`);
+				}
+				entries.push({ name, comp, csize, usize, loff, flags });
+				off = next;
+			}
+			log('info', `Parsed ${entries.length} ZIP entries.`);
+			return entries;
+		}
+
+		async function loadBook(file) {
+			for (const url of imageURLs) URL.revokeObjectURL(url);
+			imageURLs = [];
+			imageContainer.replaceChildren();
+			imageOffsets = [];
+			const started = performance.now();
+			const entries = await readZipEntries(file);
+			const imageFiles = entries
+				.filter(e => /\.(?:jpg|jpeg|jfif|png|gif|webp|avif|bmp)$/i.test(e.name))
+				.sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
+			const methods = {};
+			for (const entry of entries) methods[entry.comp] = (methods[entry.comp] || 0) + 1;
+			log('info', `Archive contains ${entries.length} entries, ${imageFiles.length} recognized images. Compression methods: ${JSON.stringify(methods)}`);
+			console.table(imageFiles.map((e, i) => ({page: i + 1, name: e.name, method: e.comp, compressed: e.csize, uncompressed: e.usize, offset: e.loff, flags: e.flags})));
+			if (!imageFiles.length) throw new Error('ZIP opened but contains no recognized images. See console entry listing.');
+
+			let succeeded = 0;
+			let failed = 0;
+			const errors = [];
+			for (let i = 0; i < imageFiles.length; i++) {
+				const entry = imageFiles[i];
+				status(`Loading... (${i + 1} / ${imageFiles.length})`);
+				log('debug', `Processing page ${i + 1}/${imageFiles.length}: ${entry.name}`);
+				log('info', `[${i + 1}/${imageFiles.length}] ${entry.name}: compression=${entry.comp}, size=${bytes(entry.csize)}`);
+				let url;
+				try {
+					if (entry.flags & 1) throw new Error('Encrypted ZIP entry');
+					if (entry.comp !== 0 && entry.comp !== 8) throw new Error(`Unsupported ZIP compression method ${entry.comp} (only Store=0 and Deflate=8 supported)`);
+					const header = await readRange(file, entry.loff, 30);
+					const hv = new DataView(header.buffer);
+					if (hv.getUint32(0, true) !== 0x04034b50) throw new Error('Invalid local file header signature');
+					const dataOff = entry.loff + 30 + hv.getUint16(26, true) + hv.getUint16(28, true);
+					if (dataOff + entry.csize > file.size) throw new Error('Compressed image extends past end of archive');
+					const ext = entry.name.split('.').pop().toLowerCase();
+					const mime = ({jpg:'image/jpeg',jpeg:'image/jpeg',jfif:'image/jpeg',png:'image/png',gif:'image/gif',webp:'image/webp',avif:'image/avif',bmp:'image/bmp'})[ext];
+					const section = file.slice(dataOff, dataOff + entry.csize);
+					let blob;
+					if (entry.comp === 0) {
+						blob = new Blob([section], {type: mime});
+					} else {
+						if (!('DecompressionStream' in window)) throw new Error('Browser does not implement DecompressionStream');
+						// Decompression output must be read concurrently with input to avoid a stream backpressure deadlock.
+						const decompressed = section.stream().pipeThrough(new DecompressionStream('deflate-raw'));
+						blob = new Blob([await new Response(decompressed).arrayBuffer()], {type: mime});
+					}
+					if (blob.size !== entry.usize) log('warn', `Uncompressed size mismatch for ${entry.name}: ZIP=${entry.usize}, actual=${blob.size}`);
+					url = URL.createObjectURL(blob);
+					const img = document.createElement('img');
+					img.alt = entry.name;
+					img.src = url;
+					const loaded = await new Promise(resolve => {
+						img.onload = () => resolve(true);
+						img.onerror = () => resolve(false);
+						imageContainer.appendChild(img);
+					});
+					if (!loaded) throw new Error(`Browser could not decode ${mime} image (${bytes(blob.size)})`);
+					imageURLs.push(url);
+					succeeded++;
+					log('info', `OK ${entry.name} (${img.naturalWidth}x${img.naturalHeight}, ${bytes(blob.size)})`);
+				} catch (error) {
+					if (url) URL.revokeObjectURL(url);
+					failed++;
+					errors.push({page:i+1,name:entry.name,error:error.message});
+					log('error', `Page ${i + 1}: ${entry.name} failed`, error);
+				}
+			}
+			console.table(errors);
+			log('info', `Finished in ${((performance.now() - started)/1000).toFixed(2)}s. Loaded=${succeeded}, failed=${failed}.`);
+			if (!succeeded) throw new Error(`All ${failed} image(s) failed. See console for individual errors.`);
+			computeImageOffsets();
+			if (failed) {
+				log('warn', `Loaded ${succeeded}/${imageFiles.length} pages; ${failed} failed. See console for details.`);
+				// Keep partial-load diagnostics visible.
+				setTimeout(() => { if (currentPageCount === succeeded) loadingMessage.style.opacity = '0'; }, 8000);
+			}
+			return succeeded;
+		}
 
 		function computeImageOffsets() {
-			const images = document.querySelectorAll("#imageContainer img");
-			imageOffsets = [];
-			let cumulative = 0;
-			images.forEach(img => {
-				cumulative += (img.offsetHeight || 0) + 5;
-				imageOffsets.push(cumulative);
-			});
+			// Use actual element positions instead of estimated heights and padding.
+			const images = Array.from(imageContainer.querySelectorAll('img'));
+			imageOffsets = images.map(img => img.offsetTop - imageContainer.offsetTop);
 		}
 
 		function setPageCounter(pageCount) {
-			const scrollPosition = imageContainer.scrollTop;
-			let currentPage = 1;
-			for (let i = 0; i < imageOffsets.length; i++) {
-				if (scrollPosition < imageOffsets[i]) {
-					currentPage = i + 1;
+			const images = imageContainer.querySelectorAll('img');
+			if (!images.length || !pageCount) {
+				pageCounter.textContent = 'Page 0 / 0';
+				return;
+			}
+			// At the physical bottom, the last page is visible even if its top
+			// cannot reach the top of the scroll viewport.
+			const atBottom = imageContainer.scrollTop + imageContainer.clientHeight >= imageContainer.scrollHeight - 2;
+			if (atBottom) {
+				pageCounter.textContent = `Page ${pageCount} / ${pageCount}`;
+				return;
+			}
+			const viewportTop = imageContainer.getBoundingClientRect().top;
+			let page = 1;
+			for (let i = 0; i < images.length; i++) {
+				if (images[i].getBoundingClientRect().bottom > viewportTop + 2) {
+					page = i + 1;
 					break;
 				}
 			}
-			if (imageOffsets.length > 0 && scrollPosition >= imageOffsets[imageOffsets.length - 1]) {
-				currentPage = pageCount;
-			}
-			pageCounter.textContent = `Page ${currentPage} / ${pageCount}`;
+			pageCounter.textContent = `Page ${Math.min(page, pageCount)} / ${pageCount}`;
 		}
 
-
-		// Function to update zoom
 		function updateZoom(value, pageCount) {
-			// Find which page is currently at the top of the viewport
-			const scrollTop = imageContainer.scrollTop;
-			let targetPage = 0;
-			for (let i = 0; i < imageOffsets.length; i++) {
-				if (scrollTop < imageOffsets[i]) {
-					targetPage = i;
-					break;
-				}
-			}
-			if (imageOffsets.length > 0 && scrollTop >= imageOffsets[imageOffsets.length - 1]) {
-				targetPage = imageOffsets.length - 1;
-			}
-
-			// How far into that page we've scrolled
-			const pageStart = targetPage > 0 ? imageOffsets[targetPage - 1] - 5 : 0;
-			const offsetInPage = scrollTop - pageStart;
-
-			const images = document.querySelectorAll("#imageContainer img");
-			images.forEach(img => {
-				img.style.maxHeight = `${value}vh`;
-			});
+			const images = Array.from(imageContainer.querySelectorAll('img'));
+			if (!images.length) return;
+			const viewportTop = imageContainer.getBoundingClientRect().top;
+			const atBottom = imageContainer.scrollTop + imageContainer.clientHeight >= imageContainer.scrollHeight - 2;
+			let target = images.find(img => img.getBoundingClientRect().bottom > viewportTop + 2) || images[images.length - 1];
+			const oldRect = target.getBoundingClientRect();
+			const fraction = oldRect.height ? Math.max(0, Math.min(1, (viewportTop - oldRect.top) / oldRect.height)) : 0;
+			images.forEach(img => { img.style.maxHeight = `${value}vh`; });
 			computeImageOffsets();
-
-			// Restore scroll to keep the same page in view
-			const newPageStart = targetPage > 0 ? imageOffsets[targetPage - 1] - 5 : 0;
-			const imageHeight = imageOffsets[targetPage] - (targetPage > 0 ? imageOffsets[targetPage - 1] - 5 : 0) - 5;
-			const fraction = imageHeight > 0 ? Math.min(offsetInPage, imageHeight) : 0;
-			imageContainer.scrollTop = Math.min(newPageStart + fraction, imageContainer.scrollHeight - imageContainer.clientHeight);
-
+			if (atBottom) {
+				imageContainer.scrollTop = imageContainer.scrollHeight;
+			} else {
+				const newRect = target.getBoundingClientRect();
+				imageContainer.scrollTop += newRect.top - viewportTop + fraction * newRect.height;
+			}
 			setPageCounter(pageCount);
 		}
 
-
 		function setupZoom(pageCount) {
-			const images = document.querySelectorAll("#imageContainer img");
-			let zoomLevel = zoomSlider.value || 100; // Default zoom level at 100%
-
-			// Initialize with the default zoom level
-			updateZoom(zoomLevel, pageCount);
-
-			// Slider event listener
-			zoomSlider.addEventListener("input", function () {
-				const value = parseInt(zoomSlider.value);
-				zoomInput.value = value; // Sync the input box with the slider
-				updateZoom(value, pageCount);
-			});
-
-			// Input event listener
-			zoomInput.addEventListener("input", function () {
-				const value = parseInt(zoomInput.value);
-				if (value >= 60 && value <= 160) {
-					zoomSlider.value = value; // Sync the slider with the input box
-					updateZoom(value, pageCount);
-				} else {
-					// Reset to last valid zoom level if input is out of bounds
-					zoomInput.value = zoomLevel;
-				}
-			});
+			updateZoom(Number(zoomSlider.value) || 100, pageCount);
 		}
+
+		zoomSlider.addEventListener('input', () => {
+			const value = Number(zoomSlider.value);
+			zoomInput.value = value;
+			if (currentPageCount) updateZoom(value, currentPageCount);
+		});
+
+		zoomInput.addEventListener('input', () => {
+			const value = Number(zoomInput.value);
+			if (value >= 25 && value <= 250) {
+				zoomSlider.value = value;
+				if (currentPageCount) updateZoom(value, currentPageCount);
+			}
+		});
+
 	</script>
 </html>
